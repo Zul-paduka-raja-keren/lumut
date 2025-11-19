@@ -289,7 +289,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Inspired by [scikit-learn](https://scikit-learn.org/)
-- Built with ❤️ and NumPy
 
 ---
 
@@ -299,4 +298,5 @@ If you find Lumut useful, please consider giving it a star on GitHub!
 
 ---
 
-**Made with 🌿 by Zul**
+
+**Made by Zul**
