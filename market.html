@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>MARKET TERMINAL X</title>
+<style>
+:root{--bg:#05070b;--panel:#0b1220;--panel2:#0f1a2e;--grid:#1b263b;--txt:#b8c4d9;--green:#4dff9f;--red:#ff5c6c;--gold:#ffd166;--cyan:#3cdfff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:Consolas,Menlo,monospace;overflow:hidden}
+.app{display:grid;grid-template-rows:30px 1fr 130px;height:100vh}
+.ticker{display:flex;gap:20px;white-space:nowrap;overflow:hidden;border-bottom:1px solid var(--grid);background:#060b14;padding:6px 10px}
+.ticker-track{display:inline-flex;gap:20px;min-width:100%;animation:slide 18s linear infinite}@keyframes slide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.main{display:grid;grid-template-columns:250px 1fr 350px;min-height:0}
+.sidebar,.right{background:var(--panel);border-right:1px solid var(--grid);overflow:auto}.right{border-right:none;border-left:1px solid var(--grid)}
+.center{display:grid;grid-template-rows:1fr 180px;min-height:0}
+.panel{padding:8px;border-bottom:1px solid var(--grid)}
+label{font-size:12px;display:block;margin:4px 0}input,select,button{background:#09111d;color:var(--txt);border:1px solid #24344f;padding:6px;font-family:inherit;font-size:12px;border-radius:4px;width:100%}
+button{cursor:pointer}button:hover{border-color:var(--cyan)}.row{display:grid;grid-template-columns:1fr 1fr;gap:6px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.chart-wrap,.osc-wrap{position:relative;background:#070f1b;min-height:0}.chart-wrap{border-bottom:1px solid var(--grid)}canvas{width:100%;height:100%;display:block;touch-action:none}
+.overlay{position:absolute;left:8px;top:8px;background:rgba(4,8,14,.75);border:1px solid var(--grid);padding:6px;font-size:11px;line-height:1.35}
+.cross{position:absolute;pointer-events:none;border-left:1px dashed #496a9b;border-top:1px dashed #496a9b;display:none}
+.bottom{background:var(--panel2);overflow:auto}.tabs{display:flex;border-bottom:1px solid var(--grid)}.tab{padding:8px 10px;cursor:pointer;border-right:1px solid var(--grid)}.tab.active{background:#111b2f;color:var(--green)}
+.tab-content{display:none;padding:8px}.tab-content.active{display:block}
+table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #1b2940;padding:4px;text-align:right}th:first-child,td:first-child{text-align:left}
+.buy{color:var(--green)}.sell{color:var(--red)}.warn{color:var(--gold)}
+.orderbook{display:grid;grid-template-rows:1fr auto 1fr;max-height:320px;border:1px solid var(--grid)}.book-mid{text-align:center;padding:4px;background:#0a1424;color:var(--gold);font-weight:700}
+.depth-row{position:relative}.depth-row span{position:relative;z-index:2}.depth-row::before{content:"";position:absolute;inset:1px 1px 1px auto;width:var(--w,0%);opacity:.25}.ask.depth-row::before{background:var(--red)}.bid.depth-row::before{background:var(--green)}
+.fullscreen{position:fixed!important;inset:0!important;z-index:99}.hide{display:none!important}
+@media (max-width:980px){.main{grid-template-columns:1fr}.sidebar,.right{max-height:210px}.center{height:calc(100vh - 30px - 130px - 420px)}.app{grid-template-rows:30px 1fr 200px}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<div class="ticker"><div class="ticker-track" id="tickerTrack"></div></div>
+<div class="main">
+<aside class="sidebar">
+<div class="panel"><b>MARKET TERMINAL X</b></div>
+<div class="panel"><label>Market</label><select id="marketSel"></select><label>Tick Window</label><select id="tickSel"></select></div>
+<div class="panel"><div class="row"><button id="buyBtn" class="buy">BUY MKT</button><button id="sellBtn" class="sell">SELL MKT</button></div><div class="row3" style="margin-top:6px"><input id="vol" type="number" value="1" step="0.1" min="0.1"><input id="sl" type="number" placeholder="SL"><input id="tp" type="number" placeholder="TP"></div><div class="row" style="margin-top:6px"><button id="buyLimit" class="buy">BUY LIMIT</button><button id="sellLimit" class="sell">SELL LIMIT</button></div><input id="limitPrice" type="number" placeholder="Limit Price" style="margin-top:6px"></div>
+<div class="panel"><label>Indicators</label><div class="row"><select id="indType"><option>EMA</option><option>SMA</option><option>RSI</option><option>MACD</option><option>STOCHASTIC</option><option>VOLUME</option><option>VWAP</option><option>BOLLINGER</option><option>ATR</option></select><input id="indParam" type="number" value="14"></div><button id="addInd" style="margin-top:6px">Add Indicator</button><div id="indList"></div></div>
+<div class="panel"><label>Draw</label><div class="row3"><button data-tool="free">Free</button><button data-tool="trend">Trend</button><button data-tool="hline">H-Line</button></div><div class="row3" style="margin-top:6px"><button data-tool="vline">V-Line</button><button data-tool="rect">Rect</button><button data-tool="erase">Erase</button></div><button id="clearDraw" style="margin-top:6px">Clear Drawings</button></div>
+<div class="panel"><label>Profile</label><input id="traderName" placeholder="Trader Name"><input id="avatar" type="file" accept="image/*" style="margin-top:6px"><button id="saveProfile" style="margin-top:6px">Save Profile</button><img id="avatarPreview" style="width:44px;height:44px;border-radius:50%;margin-top:6px"></div>
+</aside>
+<section class="center">
+<div class="chart-wrap" id="chartWrap"><canvas id="chart"></canvas><div class="overlay" id="overlay"></div><div class="cross" id="cross"></div><button id="fsBtn" style="position:absolute;right:8px;top:8px;width:auto">Fullscreen</button><button id="exitFs" class="hide" style="position:absolute;right:8px;top:40px;width:auto">Exit</button></div>
+<div class="osc-wrap"><canvas id="osc"></canvas></div>
+</section>
+<aside class="right">
+<div class="panel"><b>Orderbook DOM</b><div class="orderbook" id="orderbook"><div id="asks"></div><div class="book-mid" id="mid"></div><div id="bids"></div></div></div>
+<div class="panel"><b>Bandar vs Retail</b><div id="stats"></div></div>
+<div class="panel"><b>Account</b><div id="account"></div><div class="row"><button id="topup">FREE TOP UP</button><button id="reset">RESET</button></div></div>
+</aside>
+</div>
+<div class="bottom"><div class="tabs"><div class="tab active" data-tab="pos">Positions</div><div class="tab" data-tab="hist">History</div><div class="tab" data-tab="lim">Limits</div></div><div id="pos" class="tab-content active"></div><div id="hist" class="tab-content"></div><div id="lim" class="tab-content"></div></div>
+</div>
+<script>
+(()=>{const fmt=n=>Number(n).toLocaleString('de-DE',{minimumFractionDigits:3,maximumFractionDigits:3});
+const markets={SUPR:{price:1250,spread:1.2,color:'#4dff9f'},GOLD:{price:2430,spread:1.8,color:'#ffd166'},CROL:{price:88,spread:.25,color:'#3cdfff'},MEME:{price:.45,spread:.01,color:'#ff7ae0'}};
+const ticks=[1,5,10,15,45,100,1000]; const S=JSON.parse(localStorage.getItem('mtx')||'{}');
+const st={active:S.active||'SUPR',tick:S.tick||45,balance:S.balance||100000,equity:0,history:S.history||[],positions:S.positions||[],limits:S.limits||[],drawings:S.drawings||[],indicators:S.indicators||[],profile:S.profile||{},series:S.series||Object.fromEntries(Object.keys(markets).map(k=>[k,Array.from({length:400},(_,i)=>markets[k].price*(1+(i-200)*0.0002))])),book:[],tool:'free',drag:false,zoom:1,pan:0,cursor:null,bandar:{count:220,power:1.6,agg:1.2,freq:0.8,bias:0.1,spoof:.18,acc:true},retail:{count:1200,power:.7,agg:1.4,freq:1.2,bias:0,spoof:.02,panic:0,fomo:0}};
+const $=id=>document.getElementById(id);const chart=$('chart'),osc=$('osc'),ctx=chart.getContext('2d'),ox=osc.getContext('2d');
+function save(){localStorage.setItem('mtx',JSON.stringify({active:st.active,tick:st.tick,balance:st.balance,history:st.history,positions:st.positions,limits:st.limits,drawings:st.drawings,indicators:st.indicators,profile:st.profile,series:st.series}))}
+function resize(){[chart,osc].forEach(c=>{c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio;c.getContext('2d').setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)});drawAll()} window.addEventListener('resize',resize);
+function pressure(){const m=markets[st.active],last=st.series[st.active].at(-1);const momentum=(last-st.series[st.active].at(-8))/8; st.retail.fomo=Math.max(0,momentum*22);st.retail.panic=Math.max(0,-momentum*25);
+const bBuy=st.bandar.count*st.bandar.power*(1+st.bandar.bias+Math.max(0,-momentum*.8)); const bSell=st.bandar.count*st.bandar.power*(1-st.bandar.bias+Math.max(0,momentum*.7));
+const rBuy=st.retail.count*st.retail.power*(1+st.retail.fomo); const rSell=st.retail.count*st.retail.power*(1+st.retail.panic);
+const imbalance=(bBuy+rBuy)-(bSell+rSell); const liq=buildBook(last,imbalance); const imp=imbalance/(liq.total+1); const hunt=(Math.abs(imbalance)>300?Math.sign(imbalance)*0.08:0);
+const step=(imp*0.6+momentum*0.4+hunt)*m.spread; m.price=Math.max(0.001,last+step); st.series[st.active].push(m.price); if(st.series[st.active].length>2000)st.series[st.active].shift(); return {bBuy,bSell,rBuy,rSell,imbalance,liq};}
+function buildBook(px,imb){const asks=[],bids=[];let ca=0,cb=0,total=0;for(let i=1;i<=12;i++){let al=Math.max(5,220-(imb>0?i*12:0)+Math.random()*30),bl=Math.max(5,220+(imb>0?i*11:0)+Math.random()*30);
+if(Math.random()<st.bandar.spoof&&i<4)al*=2;if(Math.random()<st.bandar.spoof&&i<4)bl*=2;const ap=px+i*markets[st.active].spread*0.2,bp=px-i*markets[st.active].spread*0.2;ca+=al;cb+=bl;asks.push({p:ap,v:al,c:ca,t:'A'});bids.push({p:bp,v:bl,c:cb,t:'B'});total+=al+bl;}st.book={asks,bids};return {total,ca,cb}}
+function pnl(){let f=0,exp=0,win=0,loss=0,pf=1;st.positions.forEach(p=>{const cur=markets[p.market].price;const d=p.side==='BUY'?cur-p.entry:p.entry-cur;p.cur=cur;p.pnl=d*p.vol;f+=p.pnl;exp+=p.entry*p.vol;if(p.pnl>0)win++;else loss++;});st.equity=st.balance+f;const dd=Math.max(0,(100000-st.equity)/100000*100);pf=(st.history.filter(h=>h.pnl>0).reduce((a,b)=>a+b.pnl,0))/Math.max(1,Math.abs(st.history.filter(h=>h.pnl<0).reduce((a,b)=>a+b.pnl,0)));$('account').innerHTML=`Bal ${fmt(st.balance)}<br>Eq ${fmt(st.equity)}<br>Float ${fmt(f)}<br>Exposure ${fmt(exp)}<br>Winrate ${fmt((st.history.length?st.history.filter(h=>h.pnl>0).length/st.history.length*100:0))}%<br>PF ${fmt(pf)}<br>DD ${fmt(dd)}%<br>Trades ${st.history.length}`}
+function orders(){const p=markets[st.active].price;st.limits=st.limits.filter(o=>{if((o.side==='BUY'&&p<=o.price)||(o.side==='SELL'&&p>=o.price)){openPos(o.side,o.vol,o.price,o.sl,o.tp,o.market);return false} return true}); st.positions=[...st.positions.filter(pos=>{if(pos.sl&&((pos.side==='BUY'&&p<=pos.sl)||(pos.side==='SELL'&&p>=pos.sl)))return closePos(pos,'SL'),false; if(pos.tp&&((pos.side==='BUY'&&p>=pos.tp)||(pos.side==='SELL'&&p<=pos.tp)))return closePos(pos,'TP'),false; return true;})]}
+function openPos(side,vol,entry,sl,tp,market=st.active){st.positions.push({id:Date.now()+Math.random(),market,side,vol:+vol,entry:+entry,cur:+entry,pnl:0,sl:+sl||0,tp:+tp||0,time:new Date().toISOString()});save();renderTables()}
+function closePos(pos,reason='MANUAL'){st.balance+=pos.pnl;st.history.unshift({time:new Date().toISOString(),market:pos.market,side:pos.side,vol:pos.vol,pnl:pos.pnl,reason});save();renderTables()}
+function renderTables(){$('pos').innerHTML='<table><tr><th>ID</th><th>MKT</th><th>S</th><th>Vol</th><th>Entry</th><th>Cur</th><th>PnL</th><th>SL</th><th>TP</th><th></th></tr>'+st.positions.map(p=>`<tr><td>${String(p.id).slice(-5)}</td><td>${p.market}</td><td class="${p.side==='BUY'?'buy':'sell'}">${p.side}</td><td>${p.vol}</td><td>${fmt(p.entry)}</td><td>${fmt(p.cur)}</td><td class="${p.pnl>=0?'buy':'sell'}">${fmt(p.pnl)}</td><td>${p.sl?fmt(p.sl):'-'}</td><td>${p.tp?fmt(p.tp):'-'}</td><td><button onclick="window.cPos('${p.id}')">x</button></td></tr>`).join('')+'</table>';
+$('hist').innerHTML='<table><tr><th>Time</th><th>MKT</th><th>S</th><th>Vol</th><th>PnL</th><th>Reason</th></tr>'+st.history.slice(0,200).map(h=>`<tr><td>${h.time.slice(11,19)}</td><td>${h.market}</td><td>${h.side}</td><td>${h.vol}</td><td class="${h.pnl>=0?'buy':'sell'}">${fmt(h.pnl)}</td><td>${h.reason}</td></tr>`).join('')+'</table>';
+$('lim').innerHTML='<table><tr><th>ID</th><th>MKT</th><th>S</th><th>Vol</th><th>Limit</th><th>Status</th><th></th></tr>'+st.limits.map(o=>`<tr><td>${String(o.id).slice(-5)}</td><td>${o.market}</td><td class="${o.side==='BUY'?'buy':'sell'}">${o.side}</td><td>${o.vol}</td><td>${fmt(o.price)}</td><td class="warn">WAIT</td><td><button onclick="window.xLim('${o.id}')">Cancel</button></td></tr>`).join('')+'</table>'}
+window.cPos=id=>{const i=st.positions.findIndex(p=>String(p.id)===id);if(i>-1){closePos(st.positions[i]);st.positions.splice(i,1);save();renderTables()}}; window.xLim=id=>{st.limits=st.limits.filter(o=>String(o.id)!==id);save();renderTables()}
+function drawChart(){const arr=st.series[st.active],N=Math.min(st.tick,arr.length),view=arr.slice(-N),w=chart.clientWidth,h=chart.clientHeight,min=Math.min(...view),max=Math.max(...view),pad=(max-min||1)*.2;ctx.clearRect(0,0,w,h);ctx.strokeStyle='#1a2944';for(let i=0;i<8;i++){ctx.beginPath();ctx.moveTo(0,i*h/8);ctx.lineTo(w,i*h/8);ctx.stroke()}
+const y=v=>h-(v-(min-pad))/((max-min)+2*pad)*h;ctx.strokeStyle=markets[st.active].color;ctx.lineWidth=2;ctx.beginPath();view.forEach((v,i)=>{const x=i*(w/(N-1));i?ctx.lineTo(x,y(v)):ctx.moveTo(x,y(v))});ctx.stroke();ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.fillStyle='rgba(77,255,159,.08)';ctx.fill();
+st.drawings.filter(d=>d.m===st.active).forEach(d=>{ctx.strokeStyle=d.c||'#ffd166';ctx.fillStyle='rgba(255,209,102,.15)';ctx.beginPath();if(d.t==='trend'||d.t==='free'){d.p.forEach((pt,i)=>i?ctx.lineTo(pt.x,pt.y):ctx.moveTo(pt.x,pt.y));ctx.stroke()}if(d.t==='hline'){ctx.moveTo(0,d.p[0].y);ctx.lineTo(w,d.p[0].y);ctx.stroke()}if(d.t==='vline'){ctx.moveTo(d.p[0].x,0);ctx.lineTo(d.p[0].x,h);ctx.stroke()}if(d.t==='rect'){const a=d.p[0],b=d.p[1]||a;ctx.rect(a.x,a.y,b.x-a.x,b.y-a.y);ctx.stroke();ctx.fill()}})
+if(st.cursor){$('cross').style.display='block';$('cross').style.left=st.cursor.x+'px';$('cross').style.top=st.cursor.y+'px';$('cross').style.width=(w-st.cursor.x)+'px'}
+$('overlay').innerHTML=`${st.active} | ${fmt(markets[st.active].price)}<br>Spread ${fmt(markets[st.active].spread)} | Float ${fmt(st.equity-st.balance)}<br>Pos ${st.positions.length} | Status LIVE`}
+function drawOsc(){const w=osc.clientWidth,h=osc.clientHeight,arr=st.series[st.active],v=arr.slice(-Math.min(arr.length,150));ox.clearRect(0,0,w,h);ox.strokeStyle='#24344f';ox.beginPath();ox.moveTo(0,h/2);ox.lineTo(w,h/2);ox.stroke();const rsi=calcRSI(v,14);ox.strokeStyle='#3cdfff';ox.beginPath();rsi.forEach((v,i)=>{const x=i*w/(rsi.length-1),y=h-(v/100*h);i?ox.lineTo(x,y):ox.moveTo(x,y)});ox.stroke()}
+function calcRSI(a,p){let rs=[50];for(let i=1;i<a.length;i++){let g=0,l=0;for(let j=Math.max(1,i-p);j<=i;j++){const d=a[j]-a[j-1];if(d>=0)g+=d;else l-=d}const r=l?g/l:100;rs.push(100-(100/(1+r)))}return rs}
+function drawOrderbook(stats){const a=st.book.asks,b=st.book.bids,max=Math.max(...a.map(x=>x.c),...b.map(x=>x.c));$('asks').innerHTML=a.slice().reverse().map(r=>`<div class='depth-row ask' style='--w:${r.c/max*100}%'><span>${fmt(r.p)} | ${fmt(r.v)} | ${fmt(r.c)}</span></div>`).join('');$('bids').innerHTML=b.map(r=>`<div class='depth-row bid' style='--w:${r.c/max*100}%'><span>${fmt(r.p)} | ${fmt(r.v)} | ${fmt(r.c)}</span></div>`).join('');$('mid').textContent='MID '+fmt(markets[st.active].price);
+$('stats').innerHTML=`Bandar Buy ${fmt(stats.bBuy)}<br>Bandar Sell ${fmt(stats.bSell)}<br>Retail Buy ${fmt(stats.rBuy)}<br>Retail Sell ${fmt(stats.rSell)}<br>Spread ${fmt(markets[st.active].spread)}<br>Imbalance ${fmt(stats.imbalance)}`}
+function drawTicker(){const x=Object.entries(markets).map(([k,m])=>`<span class='${st.series[k].at(-1)>=st.series[k].at(-2)?'buy':'sell'}'>${k} ${fmt(m.price)} ${st.series[k].at(-1)>=st.series[k].at(-2)?'▲':'▼'}</span>`).join('');$('tickerTrack').innerHTML=x+x}
+function drawAll(){drawChart();drawOsc();renderTables();pnl();drawTicker();save()}
+setInterval(()=>{const s=pressure();orders();pnl();drawOrderbook(s);drawAll()},1000);
+Object.keys(markets).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;$('marketSel').appendChild(o)});$('marketSel').value=st.active; ticks.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;$('tickSel').appendChild(o)});$('tickSel').value=st.tick;
+$('marketSel').onchange=e=>{st.active=e.target.value;drawAll()}; $('tickSel').onchange=e=>{st.tick=+e.target.value;drawAll()};
+$('buyBtn').onclick=()=>openPos('BUY',$('vol').value,markets[st.active].price,$('sl').value,$('tp').value); $('sellBtn').onclick=()=>openPos('SELL',$('vol').value,markets[st.active].price,$('sl').value,$('tp').value);
+$('buyLimit').onclick=()=>$('limitPrice').value&&st.limits.push({id:Date.now()+Math.random(),market:st.active,side:'BUY',vol:+$('vol').value,price:+$('limitPrice').value,sl:+$('sl').value,tp:+$('tp').value})&&renderTables();
+$('sellLimit').onclick=()=>$('limitPrice').value&&st.limits.push({id:Date.now()+Math.random(),market:st.active,side:'SELL',vol:+$('vol').value,price:+$('limitPrice').value,sl:+$('sl').value,tp:+$('tp').value})&&renderTables();
+$('addInd').onclick=()=>{st.indicators.push({id:Date.now(),type:$('indType').value,param:+$('indParam').value});$('indList').innerHTML=st.indicators.map(i=>`<div>${i.type}(${i.param}) <button onclick='window.rInd(${i.id})'>x</button></div>`).join('');save()};window.rInd=id=>{st.indicators=st.indicators.filter(i=>i.id!==id);$('indList').innerHTML=st.indicators.map(i=>`<div>${i.type}(${i.param}) <button onclick='window.rInd(${i.id})'>x</button></div>`).join('');save()}
+Array.from(document.querySelectorAll('[data-tool]')).forEach(b=>b.onclick=()=>st.tool=b.dataset.tool); $('clearDraw').onclick=()=>{st.drawings=st.drawings.filter(d=>d.m!==st.active);save();drawAll()};
+let cur=null; const pt=e=>{const r=chart.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}};
+['mousedown','touchstart'].forEach(ev=>chart.addEventListener(ev,e=>{st.drag=true;const p=pt(e);st.cursor=p;if(st.tool==='erase'){st.drawings=st.drawings.filter(d=>!(d.m===st.active&&d.p.some(q=>Math.hypot(q.x-p.x,q.y-p.y)<10)));save();drawAll();return}cur={id:Date.now()+Math.random(),m:st.active,t:st.tool,p:[p]};if(st.tool==='free')st.drawings.push(cur);}));
+['mousemove','touchmove'].forEach(ev=>chart.addEventListener(ev,e=>{const p=pt(e);st.cursor=p;if(!st.drag)return;if(!cur)return;if(cur.t==='free')cur.p.push(p);else cur.p[1]=p;drawAll()}));
+['mouseup','mouseleave','touchend'].forEach(ev=>chart.addEventListener(ev,()=>{st.drag=false;if(cur&&cur.t!=='free')st.drawings.push(cur);cur=null;save()}));
+Array.from(document.querySelectorAll('.tab')).forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));t.classList.add('active');$(t.dataset.tab).classList.add('active')});
+$('fsBtn').onclick=()=>{$('chartWrap').classList.add('fullscreen');$('exitFs').classList.remove('hide');resize()}; $('exitFs').onclick=()=>{$('chartWrap').classList.remove('fullscreen');$('exitFs').classList.add('hide');resize()}; document.addEventListener('keydown',e=>{if(e.key==='Escape')$('exitFs').onclick()});
+$('topup').onclick=()=>{st.balance+=10000;save();pnl()};$('reset').onclick=()=>{localStorage.removeItem('mtx');location.reload()};
+$('saveProfile').onclick=()=>{st.profile.name=$('traderName').value||'';save()}; $('avatar').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{st.profile.avatar=r.result;$('avatarPreview').src=r.result;save()};r.readAsDataURL(f)};
+if(st.profile.name)$('traderName').value=st.profile.name;if(st.profile.avatar)$('avatarPreview').src=st.profile.avatar;window.addEventListener('beforeunload',save);
+resize();drawAll();
+})();
+</script>
+</body></html>
